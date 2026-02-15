@@ -37,9 +37,28 @@ Open a new terminal and run the test client:
 ```bash
 uv run --active test_client.py
 ```
+Note: “--active ->Use the currently active virtual environment instead of creating or managing one.”
 
 You will see the client interact with the agent in the terminal output.
 
 ## References
 - https://github.com/google/a2a-python
 - https://codelabs.developers.google.com/intro-a2a-purchasing-concierge#1
+
+## Flow Diagram
+
+Client Script
+     ↓
+GET /.well-known/agent.json
+     ↓
+Server returns AgentCard
+     ↓
+Client builds request
+     ↓
+POST send_message
+     ↓
+Server executes GreetingAgent
+     ↓
+EventQueue sends response
+     ↓
+Client prints response

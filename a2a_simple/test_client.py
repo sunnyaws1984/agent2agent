@@ -24,7 +24,7 @@ async def main() -> None:
             base_url=BASE_URL,
         )
 
-        final_agent_card_to_use: AgentCard | None = None
+        final_agent_card_to_use: AgentCard | None = None   # Initialize the variable to hold the fetched agent card
 
         try:
             print(
@@ -34,7 +34,7 @@ async def main() -> None:
             print("Fetched public agent card")
             print(_public_card.model_dump_json(indent=2))
 
-            final_agent_card_to_use = _public_card
+            final_agent_card_to_use = _public_card # Assign the fetched agent card to the variable
 
         except Exception as e:
             print(f"Error fetching public agent card: {e}")
@@ -43,7 +43,7 @@ async def main() -> None:
         client = A2AClient(
             httpx_client=httpx_client, agent_card=final_agent_card_to_use
         )
-        print("A2AClient initialized")
+        print("** Initialized A2AClient with fetched agent card **")
 
         message_payload = Message(
             role=Role.user,
