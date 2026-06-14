@@ -1,7 +1,3 @@
-"""
-Simple E-commerce A2A Server — 2 tools only
-"""
-
 from google.adk import Agent
 from google.adk.tools import FunctionTool
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
@@ -12,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ─────────────────────────────
-# 🗄️  Fake "Database"
+#  Fake "Database"
 # ─────────────────────────────
 
 ORDERS = {
@@ -29,7 +25,7 @@ INVENTORY = {
 
 
 # ─────────────────────────────
-# 🛠️  Tool 1 — get_order_status
+#  Tool 1 — get_order_status
 # ─────────────────────────────
 
 def get_order_status(order_id: str) -> dict:
@@ -56,7 +52,7 @@ def get_order_status(order_id: str) -> dict:
 
 
 # ─────────────────────────────
-# 🛠️  Tool 2 — check_inventory
+# Tool 2 — check_inventory
 # ─────────────────────────────
 
 def check_inventory(sku: str) -> dict:
@@ -82,16 +78,12 @@ def check_inventory(sku: str) -> dict:
         "available":  "✅ In stock" if in_stock else "❌ Out of stock",
     }
 
-
-# ─────────────────────────────
-# 🤖  Agent
-# ─────────────────────────────
+# Agent
 
 root_agent = Agent(
     name="SimpleShopAgent",
     description="A simple e-commerce agent that checks orders and inventory.",
-    #model="gemini-2.5-flash",
-    model="gemini-2.0-flash-lite",
+    model="gemini-2.5-flash-lite",
     tools=[
         FunctionTool(func=get_order_status),
         FunctionTool(func=check_inventory),
@@ -99,7 +91,8 @@ root_agent = Agent(
 )
 
 # ─────────────────────────────
-# 📋  Agent Card
+# AgentCard tells other agents who you are, where you are located, what you do, what formats you accept, 
+# and what capabilities you expos
 # ─────────────────────────────
 
 my_agent_card = AgentCard(
@@ -108,7 +101,20 @@ my_agent_card = AgentCard(
     description="Checks order status and product inventory.",
     version="1.0.0",
     capabilities={},
-    skills=[],
+    skills=[
+        {
+            "id": "order_tracking",           # ✅ required unique ID
+            "name": "order_tracking",
+            "description": "Track customer orders",
+            "tags": ["orders", "tracking", "ecommerce"],  # ✅ required list
+        },
+        {
+            "id": "inventory_lookup",          # ✅ required unique ID
+            "name": "inventory_lookup",
+            "description": "Check product availability",
+            "tags": ["inventory", "stock", "ecommerce"],  # ✅ required list
+        },
+    ],
     defaultInputModes=["text/plain"],
     defaultOutputModes=["text/plain"],
     supportsAuthenticatedExtendedCard=False,
@@ -118,8 +124,8 @@ my_agent_card = AgentCard(
 # 🚀  Run
 # ─────────────────────────────
 
-a2a_app = to_a2a(root_agent, port=8001, agent_card=my_agent_card)
+a2a_app = to_a2a(root_agent, port=8001, agent_card=my_agent_card) # Exposes the ADK agent as an A2A server
 
 if __name__ == "__main__":
-    print("🛒 Simple Shop A2A Server running on http://localhost:8001")
+    print(" Simple Shop A2A Server running on http://localhost:8001")
     uvicorn.run(a2a_app, host="0.0.0.0", port=8001)

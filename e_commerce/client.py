@@ -1,75 +1,115 @@
 """
-Fixed A2A Client — Way 2 (Plain HTTP)
+Simple Gradio Chat Client for SimpleShopAgent A2A Server
+---------------------------------------------------------
+Run server first : python server.py
+Then run client  : python client.py
 """
 
-import requests
-import json
+import asyncio
 import uuid
+import httpx
+import gradio as gr
 
-def way2_plain_http():
-    print("\n=== WAY 2: Plain HTTP POST ===")
+from a2a.client import A2AClient
+from a2a.types import (
+    AgentCard,
+    SendMessageRequest,
+    MessageSendParams,
+    Message,
+    TextPart,
+    Role,
+)
 
-    url = "http://localhost:8001"
+from dotenv import load_dotenv
+load_dotenv()
 
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "message/send",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "parts": [
-                    {"kind": "text", "text": "Is SHOE-RUN in stock?"}
-                ]
-            }
-        }
-    }
+SERVER_URL = "http://localhost:8001"
 
-    response = requests.post(url, json=payload)
 
-    # ── Step 1: print raw so we know the real shape ──
-    print("Status Code :", response.status_code)
-    print("Raw JSON    :", json.dumps(response.json(), indent=2))
+# ──────────────────────────────
+# 📡  Send message to A2A server
+# ──────────────────────────────
 
-    data = response.json()
+async def ask_shop_agent(question: str) -> str:
+    async with httpx.AsyncClient() as http:
 
-    # ── Step 2: safely walk the response ──
-    # A2A servers can return the reply nested differently depending on version.
-    # We try the most common shapes in order.
+        # Fetch agent card
+        card = AgentCard(**( await http.get(f"{SERVER_URL}/.well-known/agent.json")).json())
 
-    reply = None
+        # Build client & send message
+        client = A2AClient(httpx_client=http, agent_card=card)
 
-    # Shape A  →  data["result"]["parts"][0]["text"]
-    if "result" in data:
-        result = data["result"]
-        parts  = result.get("parts") or []
-        if parts:
-            reply = parts[0].get("text")
+        request = SendMessageRequest(
+            id=str(uuid.uuid4()),
+            params=MessageSendParams(
+                message=Message(
+                    role=Role.user,
+                    messageId=str(uuid.uuid4()),
+                    parts=[TextPart(text=question)],
+                )
+            ),
+        )
 
-    # Shape B  →  data["result"]["artifacts"][0]["parts"][0]["text"]
-    if not reply and "result" in data:
-        artifacts = data["result"].get("artifacts") or []
-        if artifacts:
-            parts = artifacts[0].get("parts") or []
-            if parts:
-                reply = parts[0].get("text")
+        response = await client.send_message(request)
 
-    # Shape C  →  data["result"]["messages"][-1]["parts"][0]["text"]
-    if not reply and "result" in data:
-        messages = data["result"].get("messages") or []
-        if messages:
-            parts = messages[-1].get("parts") or []
-            if parts:
-                reply = parts[0].get("text")
+        # Extract text from response
+        try:
+            task = response.root.result
 
-    # Shape D  →  JSON-RPC error
-    if not reply and "error" in data:
-        reply = f"Server returned error: {data['error']}"
+            # Shape A — artifacts
+            for artifact in task.artifacts or []:
+                for part in artifact.parts or []:
+                    p = getattr(part, "root", part)
+                    if getattr(p, "text", None):
+                        return p.text
 
-    print("\nAgent says:", reply or "Could not parse reply — see Raw JSON above")
+            # Shape B — status message
+            for part in task.status.message.parts or []:
+                p = getattr(part, "root", part)
+                if getattr(p, "text", None):
+                    return p.text
 
+        except Exception:
+            pass
+
+        return "No response received from shop agent."
+
+
+# ──────────────────────────────
+# 🎨  Gradio Chat Handler
+# ──────────────────────────────
+
+def chat(message, history):
+    try:
+        reply = asyncio.run(ask_shop_agent(message))
+    except Exception as e:
+        reply = f"❌ Error: {str(e)}\n\nMake sure the server is running at {SERVER_URL}"
+    return reply
+
+
+# ──────────────────────────────
+# 🚀  Launch UI
+# ──────────────────────────────
+
+with gr.Blocks(title="🛒 Shop Agent") as demo:
+    gr.Markdown("## 🛒 Simple Shop Agent")
+    gr.Markdown(
+        "Ask me about **order status** or **product inventory**.\n\n"
+        "Try: *What is the status of ORD-101?* or *Is SHOE-RUN in stock?*"
+    )
+
+    gr.ChatInterface(
+        fn=chat,
+        examples=[
+            "What is the status of order ORD-101?",
+            "What is the status of order ORD-102?",
+            "What is the status of order ORD-103?",
+            "Is TSHIRT-BLU in stock?",
+            "Is SHOE-RUN in stock?",
+            "Check inventory for BAG-LTH",
+        ],
+    )
 
 if __name__ == "__main__":
-    print("Make sure server is running")
-    way2_plain_http()
+    print(f"🔗 Connecting to shop agent at {SERVER_URL}")
+    demo.launch()
